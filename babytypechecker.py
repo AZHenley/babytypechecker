@@ -60,6 +60,8 @@ def _flatten_union(*parts: Type) -> Tuple[Type, ...]:
 def make_union(*parts: Type) -> Type:
     if not parts: return ANY
     flat = _flatten_union(*parts)
+    if any(isinstance(t, AnyType) for t in flat):
+        return ANY
     return flat[0] if len(flat) == 1 else UnionType(flat)
 
 def without_none(t: Type) -> Type:

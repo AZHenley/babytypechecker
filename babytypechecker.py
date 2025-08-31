@@ -58,6 +58,7 @@ def _flatten_union(*parts: Type) -> Tuple[Type, ...]:
     return tuple(uniq)
 
 def make_union(*parts: Type) -> Type:
+    if not parts: return ANY
     flat = _flatten_union(*parts)
     return flat[0] if len(flat) == 1 else UnionType(flat)
 
@@ -175,8 +176,8 @@ class BabyTypeChecker(ast.NodeVisitor):
         self.generic_visit(n)
 
     def visit_FunctionDef(self, n: ast.FunctionDef) -> None:
-        params = [self.eval_ann(a.annotation) for a in n.args.args]
-        ret    = self.eval_ann(n.returns)
+        params = [self.eval_ann(a.annotation) if a.annotation else ANY for a in n.args.args]
+        ret = self.eval_ann(n.returns) if n.returns else ANY
         self.scopes[-1][n.name] = CallableType(params, ret)  # record function symbol
         # inner scope for parameters
         self.push({a.arg: t for a, t in zip(n.args.args, params)})
@@ -192,6 +193,7 @@ class BabyTypeChecker(ast.NodeVisitor):
             self.note(n, f"return {got} ✔︎")
         else:
             self.err(n, f"return type {got} incompatible with {expected}")
+        # Does not check for the absence of a return.
 
     def visit_AnnAssign(self, n: ast.AnnAssign) -> None:
         ann = self.eval_ann(n.annotation)
@@ -317,9 +319,14 @@ class BabyTypeChecker(ast.NodeVisitor):
 
     def visit_Subscript(self, n: ast.Subscript) -> Type:
         container = self.eval_expr(n.value)
+        index_t   = self.eval_expr(n.slice)
         if isinstance(container, ListType):
+            if not is_compatible(index_t, Primitive("int")):
+                self.err(n.slice, "list index must be int")
             return container.item
         if isinstance(container, DictType):
+            if not is_compatible(index_t, container.key):
+                self.err(n.slice, f"dict key type {index_t} incompatible with {container.key}")
             return container.value
         self.note(n, "subscript of unknown container  ↯")
         return ANY

@@ -359,8 +359,9 @@ def main() -> None:
     baby = BabyTypeChecker(trace=args.trace)
     baby.visit(ast.parse(src, filename=args.file, type_comments=True))
 
-    if baby.errors and not args.trace:
-        print(*baby.errors, sep="\n")
+    if baby.errors:
+        if not args.trace:  # errors already shown
+            print(*baby.errors, sep="\n")
         sys.exit(1)
     print("Success: no type errors 🎉")
 
